@@ -64,33 +64,35 @@
     let mySocketId = null;
     const playersEl = document.getElementById('players');
 
-    const setPlayers = (playerNames = []) => {
+    const setPlayers = (playerNames = {}) => {
       playersEl.innerHTML = '';
+      console.log(playerNames);
+
       if (playerNames.length == 0) {
         return (playersEl.innerText = 'Нет игроков');
       }
-
-      playerNames.forEach(playerName => {
+      Object.entries(playerNames).forEach(([playerName, playerSign]) => {
         console.log(mySocketId);
         console.log(playerName);
         const liEl = document.createElement('li');
+        let resultPlayerName = playerName;
         if (mySocketId === playerName) {
-          liEl.innerText = 'Это вы: ' + playerName;
-        } else {
-          liEl.innerText = playerName;
+          resultPlayerName = 'Это вы: ' + resultPlayerName;
         }
+        if (playerSign === 666) {
+          resultPlayerName = resultPlayerName + '. Не распознано';
+        } else {
+          resultPlayerName = resultPlayerName + '. Распознано';
+        }
+        liEl.innerText = resultPlayerName;
         playersEl.appendChild(liEl);
       });
     };
 
-    socket.on('connect', () => {
-      mySocketId = socket.id;
-    });
-
     socket.on('playersChange', data => {
-      const playerKeys = Object.keys(data);
+      mySocketId = socket.id;
 
-      setPlayers(playerKeys);
+      setPlayers(data);
     });
 
     let ready = false;
@@ -158,6 +160,8 @@
     });
 
     const onResults = results => {
+      readyButton.disabled = false;
+
       videoElement.style.display = 'none';
       canvasElement.style.display = 'block';
 
@@ -185,7 +189,7 @@
         }
       }
       coordinates = results.multiHandLandmarks[0];
-      socket.emit('recognize', { coordinates });
+      socket.emit('recognize', { coordinates: coordinates });
 
       canvasCtx.restore();
     };

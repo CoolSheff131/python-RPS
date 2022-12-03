@@ -75,15 +75,21 @@ players = {}
 @sio.event
 def connect(sid, environ):
     print('connect ', sid)
-    players[sid] = 666
     print(players)
+    players[sid] = {
+        'ready': False,
+        'hand_sign_id': 777
+    }
+
     sio.emit('playersChange', players)
 
 
 @sio.event
 def recognize(sid, data):
     print(data)
-    coordinates = data['coordinates']
+    coordinates = None
+    if 'coordinates' in data:
+        coordinates = data['coordinates']
     if coordinates is not None:
         landmark_list = calc_landmark_list(coordinates)
         pre_processed_landmark_list = pre_process_landmark(landmark_list)
@@ -94,9 +100,16 @@ def recognize(sid, data):
     print('recognize ')
     print(hand_sign_id)
     json_str = json.dumps({'data': hand_sign_id }, cls=NpEncoder)
-    players[sid] = hand_sign_id
+    isFirstRecognize = players[sid] == 777
+    players[sid].hand_sign_id = hand_sign_id
     sio.emit('recognizeResult', json_str)
+    if isFirstRecognize:
+        sio.emit('playersChange', players)
 
+
+@sio.event
+def gameReady(sid):
+    players[sid].ready = True
 
 @sio.event
 def disconnect(sid):
