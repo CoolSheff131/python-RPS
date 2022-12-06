@@ -1,3 +1,6 @@
+import enum
+from enum import IntEnum
+
 import eventlet
 import pydantic
 import json
@@ -6,6 +9,29 @@ import itertools
 import numpy as np
 from model import KeyPointClassifier
 import socketio
+
+class Action(IntEnum):
+    Rock = 0
+    Paper = 1
+    Scissors = 2
+    Undefined = 777
+    Unrecognized = 666
+
+victories = {
+    Action.Scissors: [Action.Paper],
+    Action.Paper: [Action.Rock],
+    Action.Rock: [Action.Scissors],
+}
+
+def determine_winner(first_user_action, second_user_action):
+
+    defeats = victories[first_user_action]
+    if first_user_action == second_user_action: # Ничься
+        return 0
+    elif second_user_action in defeats:
+        return 2 # Первый победил
+    else:
+        return 1 # Второй победил
 
 sio = socketio.Server(cors_allowed_origins='*')
 app = socketio.WSGIApp(sio)
@@ -78,7 +104,7 @@ def connect(sid, environ):
     print(players)
     players[sid] = {
         'ready': False,
-        'hand_sign_id': 777
+        'hand_sign_id': Action.Undefined
     }
 
     sio.emit('playersChange', players)
@@ -86,7 +112,6 @@ def connect(sid, environ):
 
 @sio.event
 def recognize(sid, data):
-    print(data)
     coordinates = None
     if 'coordinates' in data:
         coordinates = data['coordinates']
@@ -94,22 +119,33 @@ def recognize(sid, data):
         landmark_list = calc_landmark_list(coordinates)
         pre_processed_landmark_list = pre_process_landmark(landmark_list)
         hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
+        if hand_sign_id == 0:
+            hand_sign_id = Action.Rock
+        elif hand_sign_id == 1:
+            hand_sign_id = Action.Paper
+        else:
+            hand_sign_id = Action.Scissors
     else:
-        hand_sign_id = 666
+        hand_sign_id = Action.Rock
 
-    print('recognize ')
-    print(hand_sign_id)
-    json_str = json.dumps({'data': hand_sign_id }, cls=NpEncoder)
-    isFirstRecognize = players[sid] == 777
-    players[sid].hand_sign_id = hand_sign_id
-    sio.emit('recognizeResult', json_str)
-    if isFirstRecognize:
-        sio.emit('playersChange', players)
+
+    players[sid]['hand_sign_id'] = hand_sign_id
+
+    # isFirstRecognize = players[sid]['hand_sign_id'] == Action.Undefined
+    # sio.emit('recognizeResult', json_str)
+    # if isFirstRecognize:
+    # json_str = json.dumps({'data': players }, cls=NpEncoder)
+    sio.emit('playersChange', players)
 
 
 @sio.event
-def gameReady(sid):
-    players[sid].ready = True
+def playerReady(sid):
+    players[sid]['ready'] = True
+    sio.emit('playersChange', players)
+    for player in players.values():
+        if not player['ready']:
+            return
+    sio.emit('gameStarted')
 
 @sio.event
 def disconnect(sid):
@@ -117,6 +153,20 @@ def disconnect(sid):
     del players[sid]
     print(players)
     sio.emit('playersChange', players)
+
+@sio.event
+def gameResult(sid):
+    playerValues = list(players.values())
+    firstAction = playerValues[0]['hand_sign_id']
+    secondAction = playerValues[1]['hand_sign_id']
+    winner = determine_winner(firstAction,secondAction)
+    print(firstAction)
+    print(secondAction)
+    print(winner)
+    if winner == 0:
+        return sio.emit('winner', None)
+
+    return sio.emit('winner', list(players.keys())[winner - 1])
 
 
 if __name__ == '__main__':

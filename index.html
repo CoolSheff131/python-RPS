@@ -30,12 +30,15 @@
   <body>
     <div class="container">
       <h3>Список игроков</h3>
-      <ul class="title" id="players"></ul>
+      <ul id="players"></ul>
+      <h1 class="title"></h1>
       <div>
         <div>Вы показываете:</div>
         <h2 class="figure"></h2>
       </div>
 
+      <img src="" />
+      <img src="" />
       <video class="input_video"></video>
       <canvas
         class="output_canvas"
@@ -60,65 +63,17 @@
     const IP = 'localhost';
 
     const socket = io(`ws://${IP}:5000`);
-
-    let mySocketId = null;
-    const playersEl = document.getElementById('players');
-
-    const setPlayers = (playerNames = {}) => {
-      playersEl.innerHTML = '';
-      console.log(playerNames);
-
-      if (playerNames.length == 0) {
-        return (playersEl.innerText = 'Нет игроков');
-      }
-      Object.entries(playerNames).forEach(([playerName, playerSign]) => {
-        console.log(mySocketId);
-        console.log(playerName);
-        const liEl = document.createElement('li');
-        let resultPlayerName = playerName;
-        if (mySocketId === playerName) {
-          resultPlayerName = 'Это вы: ' + resultPlayerName;
-        }
-        if (playerSign === 666) {
-          resultPlayerName = resultPlayerName + '. Не распознано';
-        } else {
-          resultPlayerName = resultPlayerName + '. Распознано';
-        }
-        liEl.innerText = resultPlayerName;
-        playersEl.appendChild(liEl);
-      });
+    const figures = {
+      0: '🤚',
+      1: '🤜',
+      2: '✌️',
+      666: 'Не распознано',
+      777: 'Не начато распознанование',
     };
-
-    socket.on('playersChange', data => {
-      mySocketId = socket.id;
-
-      setPlayers(data);
-    });
-
-    let ready = false;
-
-    socket.on('gameReady', () => {
-      ready = true;
-    });
-
-    let go = false;
-
-    socket.on('gameStart', () => {
-      readyButton.disabled = true;
-      go = true;
-      let count = 3;
-      title.innerText = count;
-      let timer = null;
-      timer = setInterval(() => {
-        count -= 1;
-        title.innerText = count;
-        if (count === 0) {
-          started = false;
-          socket.emit('gameResult', { coordinates });
-          clearInterval(timer);
-        }
-      }, 1000);
-    });
+    let mySocketId = null;
+    let started = true;
+    let coordinates = null;
+    const playersEl = document.getElementById('players');
 
     const title = document.querySelector('.title');
     const figure = document.querySelector('.figure');
@@ -128,29 +83,75 @@
 
     const readyButton = document.getElementById('startButton');
     readyButton.disabled = true;
-    let started = true;
+
+    const setPlayers = (playerNames = {}) => {
+      playersEl.innerHTML = '';
+
+      if (playerNames.length == 0) {
+        return (playersEl.innerText = 'Нет игроков');
+      }
+      Object.entries(playerNames).forEach(
+        ([playerName, { hand_sign_id, ready }]) => {
+          const liEl = document.createElement('li');
+          let resultPlayerName = playerName;
+          resultPlayerName =
+            resultPlayerName + (ready ? ' готов' : ' не готов');
+          if (mySocketId === playerName) {
+            resultPlayerName = 'Это вы: ' + resultPlayerName;
+          }
+          if (hand_sign_id === 666 || hand_sign_id === 777) {
+            resultPlayerName = resultPlayerName + '. Не распознано';
+          } else {
+            resultPlayerName = resultPlayerName + '. Распознано';
+          }
+          liEl.innerText = resultPlayerName;
+          playersEl.appendChild(liEl);
+        },
+      );
+    };
+
+    socket.on('playersChange', data => {
+      console.log(data);
+      const players = data;
+      mySocketId = socket.id;
+      console.log(players);
+      const figureId = players[mySocketId].hand_sign_id;
+      figure.innerText = figures[figureId];
+      setPlayers(players);
+    });
+
+    socket.on('gameStarted', () => {
+      started = true;
+
+      readyButton.disabled = true;
+      let count = 3;
+      title.innerText = count;
+      let timer = null;
+      timer = setInterval(() => {
+        count -= 1;
+        title.innerText = count;
+        if (count === 0) {
+          started = false;
+          socket.emit('gameResult');
+          clearInterval(timer);
+        }
+      }, 1000);
+    });
 
     readyButton.addEventListener('click', () => {
-      socket.emit('gameReady');
+      socket.emit('playerReady');
       readyButton.disabled = true;
     });
 
-    const figures = {
-      0: '🤚',
-      1: '🤜',
-      2: '✌️',
-      666: 'Не распознано',
-    };
+    // socket.on('recognizeResult', data => {
+    //   const figureId = JSON.parse(data).data;
 
-    socket.on('recognizeResult', data => {
-      const figureId = JSON.parse(data).data;
+    //   figure.innerText = figures[figureId];
+    // });
 
-      figure.innerText = figures[figureId];
-    });
-
-    socket.on('gameResult', data => {
+    socket.on('winner', data => {
       console.log(data);
-      if (data === null) {
+      if (!data) {
         title.innerText = 'Ничья';
       } else if (socket.id === data) {
         title.innerText = 'Победа';
@@ -174,7 +175,6 @@
         canvasElement.width,
         canvasElement.height,
       );
-      let coordinates = null;
 
       if (results.multiHandLandmarks) {
         for (const landmarks of results.multiHandLandmarks) {
@@ -189,6 +189,7 @@
         }
       }
       coordinates = results.multiHandLandmarks[0];
+
       socket.emit('recognize', { coordinates: coordinates });
 
       canvasCtx.restore();
