@@ -51,6 +51,12 @@
           Ready
         </button>
       </div>
+
+      <div>
+        <button type="button" class="btn btn-primary" id="restartButton">
+          Restart
+        </button>
+      </div>
     </div>
   </body>
   <script
@@ -71,7 +77,6 @@
       777: 'Не начато распознанование',
     };
     let mySocketId = null;
-    let started = true;
     let coordinates = null;
     const playersEl = document.getElementById('players');
 
@@ -83,15 +88,29 @@
 
     const readyButton = document.getElementById('startButton');
     readyButton.disabled = true;
+    const restartButton = document.getElementById('restartButton');
+    restartButton.disabled = true;
 
-    const setPlayers = (playerNames = {}) => {
+    socket.on('playersChange', data => {
+      console.log(data);
+      const players = data;
+      mySocketId = socket.id;
+      console.log(players);
+      const figureId = players[mySocketId].hand_sign_id;
+      figure.innerText = figures[figureId];
+
       playersEl.innerHTML = '';
 
-      if (playerNames.length == 0) {
+      if (players.length == 0) {
         return (playersEl.innerText = 'Нет игроков');
       }
-      Object.entries(playerNames).forEach(
-        ([playerName, { hand_sign_id, ready }]) => {
+
+      const winPlayerCount = Object.entries(players).filter(
+        ([playerName, { hand_sign_id, ready, losed }]) => !losed,
+      ).length;
+
+      Object.entries(players).forEach(
+        ([playerName, { hand_sign_id, ready, losed }]) => {
           const liEl = document.createElement('li');
           let resultPlayerName = playerName;
           resultPlayerName =
@@ -104,26 +123,22 @@
           } else {
             resultPlayerName = resultPlayerName + '. Распознано';
           }
+          if (losed) {
+            resultPlayerName = resultPlayerName + '. Проиграл';
+          }
           liEl.innerText = resultPlayerName;
           playersEl.appendChild(liEl);
         },
       );
-    };
-
-    socket.on('playersChange', data => {
-      console.log(data);
-      const players = data;
-      mySocketId = socket.id;
-      console.log(players);
-      const figureId = players[mySocketId].hand_sign_id;
-      figure.innerText = figures[figureId];
-      setPlayers(players);
     });
 
+    socket.on('gameStatusChange', isStarted => {
+      if (isStarted) {
+        restartButton.disabled = false;
+      } else {
+      }
+    });
     socket.on('gameStarted', () => {
-      started = true;
-
-      readyButton.disabled = true;
       let count = 3;
       title.innerText = count;
       let timer = null;
@@ -131,8 +146,6 @@
         count -= 1;
         title.innerText = count;
         if (count === 0) {
-          started = false;
-          socket.emit('gameResult');
           clearInterval(timer);
         }
       }, 1000);
@@ -143,14 +156,9 @@
       readyButton.disabled = true;
     });
 
-    // socket.on('recognizeResult', data => {
-    //   const figureId = JSON.parse(data).data;
-
-    //   figure.innerText = figures[figureId];
-    // });
-
     socket.on('winner', data => {
-      console.log(data);
+      readyButton.disabled = false;
+
       if (!data) {
         title.innerText = 'Ничья';
       } else if (socket.id === data) {
@@ -161,8 +169,6 @@
     });
 
     const onResults = results => {
-      readyButton.disabled = false;
-
       videoElement.style.display = 'none';
       canvasElement.style.display = 'block';
 
@@ -183,7 +189,7 @@
             lineWidth: 5,
           });
           drawLandmarks(canvasCtx, landmarks, {
-            color: '#FF0000',
+            color: '#00AA00',
             lineWidth: 2,
           });
         }
