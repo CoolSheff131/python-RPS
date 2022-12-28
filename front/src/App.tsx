@@ -8,6 +8,21 @@ import './App.css';
 const IP = 'localhost';
 
 const socket = io(`ws://${IP}:5000`);
+
+const hands = new Hands({
+  locateFile: file => {
+    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+  },
+});
+
+hands.setOptions({
+  maxNumHands: 2,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5,
+});
+
+
 const figures = {
   0: '🤚',
   1: '🤜',
@@ -22,46 +37,32 @@ type IPlayerData = Record<string, IPlayer>
 function App() {
 
   const [mySocketId, setMySocketId] = React.useState('');
-
-
   const [players, setPlayers] = React.useState<IPlayerData>({})
-
-  const [title, setTitle] = React.useState('');
   const [figure, setFigure] = React.useState('');
-  const [isReadyDisabled, setIsReadyDisabled] = React.useState(false);
-  const [isRestartDisabled, setIsRestartDisabled] = React.useState(false);
-  const [isStarted, setIsStarted] = React.useState(false);
+
+  // const [isReadyDisabled, setIsReadyDisabled] = React.useState(false);
+  // const [isRestartDisabled, setIsRestartDisabled] = React.useState(false);
+  // const [isStarted, setIsStarted] = React.useState(false);
 
 
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const videoRef = React.useRef<HTMLVideoElement>(null);
 
-  const hands = new Hands({
-    locateFile: file => {
-      return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-    },
-  });
 
-  hands.setOptions({
-    maxNumHands: 2,
-    modelComplexity: 1,
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5,
-  });
 
   const handleReadyClick = () => {
     socket.emit('playerReady');
-    setIsReadyDisabled(true)
+    // setIsReadyDisabled(true)
   }
   const handleRestartClick = () => {
     socket.emit('restartGame');
-    setIsRestartDisabled(true)
+    // setIsRestartDisabled(true)
   }
 
 
 
   React.useEffect(() => {
-    socket.connect()
+
     socket.on('playersChange', (data: IPlayerData) => {
       setPlayers(data);
       setMySocketId(socket.id);
@@ -70,36 +71,20 @@ function App() {
       setFigure(figures[figureId]);
     });
 
-    socket.on('gameStatusChange', isStarted => {
-      setIsStarted(isStarted)
-      console.log(isStarted)
-      if (isStarted) {
+    // socket.on('gameStatusChange', isStarted => {
+    //   setIsStarted(isStarted)
+    //   console.log(isStarted)
 
+    // });
 
-
-
-      } else {
-
-      }
-    });
-
-    socket.on('winner', data => {
-      setIsReadyDisabled(false)
-
-      if (!data) {
-        setTitle(() => 'Ничья')
-
-      } else if (socket.id === data) {
-        setTitle(() => 'Победа')
-      } else {
-        setTitle(() => 'Поражение')
-      }
-    });
+    // socket.on('winner', data => {
+    //   setIsReadyDisabled(false)
+    // });
 
     return () => {
-      socket.off('winner')
-      socket.off('gameStatusChange')
-      socket.off('playersChange')
+      // socket.off('winner')
+      // socket.off('gameStatusChange')
+      // socket.off('playersChange')
       socket.disconnect()
     }
   }, [])
@@ -164,7 +149,7 @@ function App() {
     <div className="App">
       <div className="container">
         <h3>Список игроков</h3>
-        <h1>{isStarted ? 'Начата' : 'Не начата'}</h1>
+
         <ul id="players">
           {
             Object.entries(players).map(
